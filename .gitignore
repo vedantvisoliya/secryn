@@ -25,3 +25,5 @@ dist-ssr
 
 # claude
 .claude/
+.env
+.env.local

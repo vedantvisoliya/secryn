@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowUpRight, Menu, Star } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -91,7 +92,7 @@ export function SiteHeader() {
               size="sm"
               className="hidden text-ink-300 hover:bg-ink-850 hover:text-ink-50 sm:inline-flex"
             >
-              <a href="#cta">Sign in</a>
+              <Link to="/login">Sign in</Link>
             </Button>
 
             <Button
@@ -99,10 +100,10 @@ export function SiteHeader() {
               size="sm"
               className="hidden font-medium sm:inline-flex"
             >
-              <a href="#cta">
+              <Link to="/login">
                 Start free
                 <ArrowUpRight className="size-3.5" aria-hidden="true" />
-              </a>
+              </Link>
             </Button>
 
             <Sheet>
@@ -140,10 +141,10 @@ export function SiteHeader() {
 
                 <div className="flex flex-col gap-2 p-4">
                   <Button asChild size="lg">
-                    <a href="#cta">Start free</a>
+                    <Link to="/login">Start free</Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
-                    <a href="#cta">Sign in</a>
+                    <Link to="/login">Sign in</Link>
                   </Button>
                 </div>
               </SheetContent>

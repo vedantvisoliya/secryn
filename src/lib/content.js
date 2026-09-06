@@ -29,7 +29,7 @@ export const HERO = {
   },
   headline: ['Secrets go in encrypted.', 'Nothing comes out that shouldn’t.'],
   body: 'Secryn seals every credential with AES-256-GCM under a key derived from your passphrase. The passphrase is never stored and never leaves your session, so what lands in the database is ciphertext, an IV, and an auth tag — nothing that can be replayed.',
-  primaryCta: { label: 'Create a vault', href: '#cta' },
+  primaryCta: { label: 'Create a vault', href: '/login' },
   secondaryCta: { label: 'See how it works', href: '#how' },
   assurances: [
     'Google SSO + TOTP',
@@ -449,7 +449,7 @@ export const FAQ = {
 export const CTA = {
   heading: 'Move your keys somewhere they cannot be grepped.',
   body: 'Free for one project and up to 50 secrets. No card, nothing to install, and no sales call between you and a working vault.',
-  primary: { label: 'Create a vault', href: '#' },
+  primary: { label: 'Create a vault', href: '/login' },
   secondary: { label: 'Read the threat model', href: '#architecture' },
   note: 'Runs in any modern browser. Sign in with Google and you are in.',
 }

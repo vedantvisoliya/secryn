@@ -26,6 +26,69 @@ npm run build
 npm run lint
 ```
 
+## Authentication
+
+Google sign-in (via Firebase) → mandatory TOTP → Secryn's own JWT session.
+Routes: `/` landing, `/login` the auth sequence, `/app` behind the session.
+
+### Environment
+
+Copy `.env.example` to `.env` and set the Firebase web config. On Vercel, add
+the same keys under Project Settings → Environment Variables.
+
+```bash
+cp .env.example .env
+```
+
+### How the flow maps to the API
+
+| Step | Call | Notes |
+| --- | --- | --- |
+| Sign in | `POST /api/v1/auth/login` | Body `{ id_token }` |
+| Branch | `GET /api/v1/users/me` | `mfa_enabled` picks enroll vs verify |
+| Enroll | `POST /api/v1/auth/mfa/enroll/start` → `/confirm` | `{ secret, provisioning_uri }` → `{ code, secret }` |
+| Verify | `POST /api/v1/auth/mfa/verify` | Body `{ email, code }`, unauthenticated |
+| Rotate | `POST /api/v1/auth/refresh` | Body `{ refresh_token }` |
+| Log out | `POST /api/v1/auth/logout` | Body `{ refresh_token }`, returns 204 |
+
+### Three things the API does that are easy to get wrong
+
+**1. `/auth/login` wants a Google ID token, not a Firebase one.** The backend
+verifies against `GOOGLE_CLIENT_ID` with Google's own verifier, so
+`user.getIdToken()` (issuer `securetoken.google.com`) fails with
+`401 Unable to verify Google credentials`. We send
+`GoogleAuthProvider.credentialFromResult(result).idToken` instead — issuer
+`accounts.google.com`, audience your OAuth client id. This is why the Firebase
+Google provider must be wired to your own OAuth client, and why that client id
+must equal the backend's `GOOGLE_CLIENT_ID`. Set `VITE_GOOGLE_CLIENT_ID` to
+catch a mismatch in the browser instead of as an opaque 401.
+
+**2. There are no `Set-Cookie` headers.** Tokens come back in the JSON body and
+`/auth/refresh` takes the refresh token in the *request body*, so the token has
+to be readable by JavaScript. `httpOnly` is therefore impossible in this SPA —
+there is no server of ours in the request path to set it. Tokens live in
+`Secure` + `SameSite=Strict` cookies (see the note at the top of
+`src/lib/tokens.js`). **An XSS on this origin can read them.** Closing that
+requires a backend-for-frontend: a Vercel serverless route holding the refresh
+token in an httpOnly cookie and proxying `/auth/refresh`. Worth doing before
+real secrets are in play.
+
+**3. `mfa_pending` alone doesn't say which branch you're on.** It only means
+"MFA still required". `GET /users/me` carries both `mfa_enabled` and
+`mfa_pending`, so it decides enroll vs verify. If a pending-scope token can't
+reach that endpoint, `resolveStage()` falls back to probing `enroll/start`.
+
+### Session handling
+
+- Refresh timing comes from the access token's own `exp` claim, not a hardcoded
+  15 minutes. Rotation fires 60s before expiry (`REFRESH_SKEW_MS`).
+- Refresh is **single-flight**: concurrent 401s share one in-flight promise, so
+  they can't race the server-side rotation and invalidate each other.
+- A 401 on any authenticated call triggers exactly one refresh-and-replay, never
+  a loop. A rejected refresh clears the session and returns to `/login`.
+- Logout calls the API first, then clears locally **regardless** of the result.
+- A sleeping tab misses its timer, so rotation is re-checked on `visibilitychange`.
+
 ## Structure
 
 ```
