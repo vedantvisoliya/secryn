@@ -1,111 +1,258 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+   SECRYN DESIGN TOKENS
+   A single dark theme. Neutrals carry the structure; colour is reserved for
+   state (sealed / ciphertext / expiring / exposed) so it always means something.
+   ========================================================================== */
+@theme {
+  /* --- Ink: cool, blue-shifted neutral ramp ------------------------------ */
+  --color-ink-950: #06070a;
+  --color-ink-925: #08090d;
+  --color-ink-900: #0b0d12;
+  --color-ink-850: #0f1117;
+  --color-ink-800: #14171e;
+  --color-ink-750: #191d25;
+  --color-ink-700: #1f242d;
+  --color-ink-600: #2b313c;
+  --color-ink-500: #3d4451;
+  --color-ink-400: #5c6472;
+  --color-ink-300: #8a92a1;
+  --color-ink-250: #a7aebb;
+  --color-ink-200: #c3c9d3;
+  --color-ink-100: #e4e7ec;
+  --color-ink-50: #f5f6f8;
+
+  /* --- State colour ------------------------------------------------------ */
+  --color-signal: #35e0a1;
+  --color-signal-dim: #1aa57a;
+  --color-signal-deep: #0a2c22;
+  --color-cipher: #9a8bff;
+  --color-cipher-dim: #6c5ce0;
+  --color-cipher-deep: #1a1533;
+  --color-ember: #f2b45c;
+  --color-ember-deep: #2e2113;
+  --color-flare: #ff7a6b;
+  --color-flare-deep: #2e1615;
+
+  /* --- Type ramp --------------------------------------------------------- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --text-display: clamp(2.375rem, 1.1rem + 3.6vw, 4rem);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.042em;
+  --text-display--font-weight: 500;
+
+  --text-h2: clamp(1.875rem, 1.2rem + 2.2vw, 2.875rem);
+  --text-h2--line-height: 1.05;
+  --text-h2--letter-spacing: -0.034em;
+  --text-h2--font-weight: 500;
+
+  --text-h3: clamp(1.0625rem, 0.95rem + 0.45vw, 1.3125rem);
+  --text-h3--line-height: 1.25;
+  --text-h3--letter-spacing: -0.02em;
+  --text-h3--font-weight: 500;
+
+  --text-lead: clamp(1.0625rem, 0.98rem + 0.36vw, 1.1875rem);
+  --text-lead--line-height: 1.6;
+  --text-lead--letter-spacing: -0.011em;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.2;
+  --text-micro--letter-spacing: 0.12em;
+
+  /* --- Structure --------------------------------------------------------- */
+  --container-page: 78rem;
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- shadcn/ui semantic tokens, bound to the Secryn ramp ------------------ */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --background: var(--color-ink-950);
+  --foreground: var(--color-ink-100);
+  --card: var(--color-ink-900);
+  --card-foreground: var(--color-ink-100);
+  --popover: var(--color-ink-850);
+  --popover-foreground: var(--color-ink-100);
+  --primary: var(--color-ink-50);
+  --primary-foreground: var(--color-ink-950);
+  --secondary: var(--color-ink-800);
+  --secondary-foreground: var(--color-ink-100);
+  --muted: var(--color-ink-850);
+  --muted-foreground: var(--color-ink-300);
+  --accent: var(--color-ink-800);
+  --accent-foreground: var(--color-ink-50);
+  --destructive: var(--color-flare);
+  --border: #1a1f28;
+  --border-strong: #262c38;
+  --input: #20262f;
+  --ring: var(--color-signal-dim);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Vertical rhythm. One knob drives every section band. */
+  --section-y: clamp(4.5rem, 2.75rem + 6.5vw, 8rem);
+  --gutter: clamp(1.25rem, 0.5rem + 2.4vw, 3rem);
+}
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "liga" 1, "calt" 1, "cv05" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-signal) 26%, transparent);
+    color: var(--color-ink-50);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal-dim);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-ink-950);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-700);
+    border-radius: 999px;
+    border: 2px solid var(--color-ink-950);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-600);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* ============================================================================
+   UTILITIES
+   ========================================================================== */
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
-  margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
+/* Mono eyebrow used for every section index and spec label. */
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   font-weight: 500;
-  color: var(--text-h);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* Faint engineering-drawing grid. Masked so it never becomes wallpaper. */
+@utility grid-field {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-ink-100) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-ink-100) 4%, transparent) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  background-position: center top;
+}
+
+/* Diagonal hatch marks an "unprotected" surface in the problem section. */
+@utility hatch-field {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklab, var(--color-flare) 9%, transparent) 0 1px,
+    transparent 1px 9px
+  );
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes secryn-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.4);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@keyframes secryn-caret {
+  0%,
+  45% {
+    opacity: 1;
   }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  50%,
+  95% {
+    opacity: 0;
+  }
 }
