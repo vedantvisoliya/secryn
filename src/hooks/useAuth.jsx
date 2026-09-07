@@ -73,18 +73,46 @@ export function AuthProvider({ children }) {
     setError(message)
   }, [])
 
-  /** Apply a TokenPair, then hydrate whatever stage it implies. */
+  /**
+   * Apply a TokenPair, then hydrate whatever stage it implies.
+   *
+   * `freshLogin` marks a brand-new Google sign-in, as opposed to a token
+   * rotation or an enrollment/verification that has already cleared the second
+   * factor. It matters because the backend treats MFA as a one-time *setup*
+   * gate: once a user is enrolled, `/auth/login` returns `mfa_pending: false`
+   * and full scopes without ever asking for a code. We still demand the code
+   * on every sign-in, so an enrolled user goes to VERIFY rather than straight in.
+   */
   const applyTokenPair = useCallback(
-    async (pair, emailHint) => {
+    async (pair, emailHint, { freshLogin = false } = {}) => {
       saveTokens(pair)
 
       if (!pair.mfa_pending) {
         const me = await usersApi.me().catch(() => null)
+        const enrolled = me?.mfa_enabled ?? readContext().mfaEnrolled === true
+
+        if (freshLogin && enrolled) {
+          setUser(me)
+          setEmail(me?.email ?? emailHint ?? null)
+          setEnrollment(null)
+          setStage(STAGE.VERIFY)
+          saveContext({
+            email: me?.email ?? emailHint,
+            stage: 'pending',
+            mfaEnrolled: true,
+          })
+          return
+        }
+
         setUser(me)
         setEmail(me?.email ?? emailHint ?? null)
         setEnrollment(null)
         setStage(STAGE.AUTHENTICATED)
-        saveContext({ email: me?.email ?? emailHint, stage: 'active' })
+        saveContext({
+          email: me?.email ?? emailHint,
+          stage: 'active',
+          mfaEnrolled: enrolled,
+        })
         return
       }
 
@@ -112,12 +140,20 @@ export function AuthProvider({ children }) {
         return
       }
       try {
-        const resolved = await resolveStage(readContext().email ?? null)
+        const context = readContext()
+        const resolved = await resolveStage(context.email ?? null)
         if (cancelled) return
+
+        // The backend hands an enrolled user full scopes at login, so a reload
+        // mid-verification would otherwise look "authenticated" and skip the
+        // code. The stored stage remembers that we were still waiting.
+        const owesSecondFactor =
+          resolved.stage === STAGE.AUTHENTICATED && context.stage === 'pending'
+
         setUser(resolved.user ?? null)
-        setEmail(resolved.email ?? readContext().email ?? null)
+        setEmail(resolved.email ?? context.email ?? null)
         setEnrollment(resolved.enrollment ?? null)
-        setStage(resolved.stage)
+        setStage(owesSecondFactor ? STAGE.VERIFY : resolved.stage)
       } catch {
         if (!cancelled) endSession()
       }
@@ -182,7 +218,7 @@ export function AuthProvider({ children }) {
       const google = await firebase.signInWithGoogle()
       setEmail(google.email)
       const pair = await authApi.login(google.idToken)
-      await applyTokenPair(pair, google.email)
+      await applyTokenPair(pair, google.email, { freshLogin: true })
     } catch (caught) {
       if (firebase?.isCancelledSignIn(caught)) {
         setError(null)
