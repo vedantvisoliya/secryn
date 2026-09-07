@@ -4,6 +4,7 @@ import { Check, Copy, Eye, EyeOff, ShieldX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { Button } from '@/components/ui/button'
+import { GoogleMarkTile } from '@/components/shared/GoogleLogo'
 
 /**
  * Product-UI mocks for the "How it works" steps.
@@ -49,12 +50,7 @@ function SignInVisual() {
   return (
     <Panel title="secryn · sign in" status="verified" statusTone="text-signal">
       <div className="flex items-center gap-3 rounded-md border border-border bg-ink-850 px-4 py-3">
-        <span
-          aria-hidden="true"
-          className="grid size-6 shrink-0 place-items-center rounded-full border border-border-strong font-display text-xs font-medium text-ink-200"
-        >
-          G
-        </span>
+        <GoogleMarkTile />
         <span className="text-sm text-ink-100">Continue with Google</span>
       </div>
 

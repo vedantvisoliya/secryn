@@ -1,6 +1,7 @@
 import { KeyRound, Loader2, ShieldCheck } from 'lucide-react'
 
 import { useAuth } from '@/hooks/auth-context'
+import { GoogleLogo } from '@/components/shared/GoogleLogo'
 import { AuthShell, FormError } from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
 
@@ -45,12 +46,7 @@ export function SignInStep() {
           </>
         ) : (
           <>
-            <span
-              aria-hidden="true"
-              className="grid size-5 place-items-center rounded-full border border-ink-950/25 font-display text-[0.6875rem] font-semibold"
-            >
-              G
-            </span>
+            <GoogleLogo />
             Continue with Google
           </>
         )}
