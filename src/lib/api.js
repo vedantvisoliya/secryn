@@ -50,8 +50,16 @@ function describeDetail(payload, fallback) {
   const detail = payload?.detail
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail) && detail.length > 0) {
+    // Include `loc` — a bare "input is too short" with no field name is
+    // impossible to act on.
     return detail
-      .map((item) => item?.msg)
+      .map((item) => {
+        if (!item?.msg) return null
+        const field = Array.isArray(item.loc)
+          ? item.loc.filter((part) => part !== 'body' && part !== 'query').join('.')
+          : ''
+        return field ? `${field}: ${item.msg}` : item.msg
+      })
       .filter(Boolean)
       .join('. ')
   }
@@ -236,6 +244,67 @@ export const authApi = {
 export const usersApi = {
   /** @returns {Promise<{email: string, name: string, mfa_enabled: boolean, mfa_pending: boolean}>} */
   me: () => request('/api/v1/users/me'),
+}
+
+/* ── API keys ───────────────────────────────────────────────────────────── */
+
+/**
+ * The decrypt endpoint's 200 response is documented as `{}` — no schema at all
+ * — so the field name carrying the plaintext is unknown until we see a real
+ * response. Try the plausible names, then fall back to "the only string in the
+ * object". Once confirmed against the live API this can collapse to one line.
+ *
+ * @param {unknown} payload
+ * @returns {string | null}
+ */
+export function extractPlaintext(payload) {
+  if (typeof payload === 'string') return payload
+  if (!payload || typeof payload !== 'object') return null
+
+  const named = [
+    'api_key',
+    'plaintext',
+    'plain_text',
+    'decrypted_key',
+    'decrypted',
+    'value',
+    'key',
+  ]
+  for (const field of named) {
+    if (typeof payload[field] === 'string') return payload[field]
+  }
+
+  const strings = Object.values(payload).filter((v) => typeof v === 'string')
+  return strings.length === 1 ? strings[0] : null
+}
+
+export const keysApi = {
+  /** @returns {Promise<Array<object>>} */
+  list: ({ skip = 0, limit = 100 } = {}) =>
+    request(`/api/v1/api-keys?skip=${skip}&limit=${limit}`),
+
+  get: (id) => request(`/api/v1/api-keys/${id}`),
+
+  create: (payload) =>
+    request('/api/v1/api-keys', { method: 'POST', body: payload }),
+
+  update: (id, patch) =>
+    request(`/api/v1/api-keys/${id}`, { method: 'PATCH', body: patch }),
+
+  /** Soft delete — the record stays and can be restored. */
+  remove: (id) => request(`/api/v1/api-keys/${id}`, { method: 'DELETE' }),
+
+  restore: (id) =>
+    request(`/api/v1/api-keys/${id}/restore`, { method: 'POST' }),
+
+  /** @returns {Promise<string|null>} the plaintext key */
+  decrypt: async (id, passphrase) =>
+    extractPlaintext(
+      await request(`/api/v1/api-keys/${id}/decrypt`, {
+        method: 'POST',
+        body: { passphrase },
+      }),
+    ),
 }
 
 export const systemApi = {

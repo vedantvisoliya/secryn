@@ -1,74 +1,129 @@
-import { useEffect, useState } from 'react'
-import { Loader2, LogOut, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Lock, LockOpen, LogOut, Plus, Search } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/auth-context'
-import { refreshSession } from '@/lib/api'
-import { expiryOf, getAccessToken } from '@/lib/tokens'
+import { useApiKeys } from '@/hooks/useApiKeys'
+import { PassphraseProvider } from '@/hooks/PassphraseProvider'
+import { usePassphrase } from '@/hooks/passphrase-context'
+import { KEY_STATUS, keyStatus } from '@/lib/key-status'
 import { Frame } from '@/components/shared/Frame'
 import { Logo } from '@/components/shared/Logo'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { KeyTable } from '@/components/vault/KeyTable'
+import { KeyDetail } from '@/components/vault/KeyDetail'
+import { CreateKeyDialog, EditKeyDialog } from '@/components/vault/KeyDialogs'
+import { PassphraseDialog } from '@/components/vault/PassphraseDialog'
 
-/** Live countdown to the access token's own `exp` claim. */
-function useAccessTokenCountdown() {
-  const [secondsLeft, setSecondsLeft] = useState(null)
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: KEY_STATUS.SEALED, label: 'Sealed' },
+  { id: KEY_STATUS.EXPIRING, label: 'Expiring' },
+  { id: KEY_STATUS.EXPIRED, label: 'Expired' },
+  { id: KEY_STATUS.DELETED, label: 'Deleted' },
+]
 
-  useEffect(() => {
-    const tick = () => {
-      const token = getAccessToken()
-      const expiresAt = token ? expiryOf(token) : null
-      setSecondsLeft(
-        expiresAt === null ? null : Math.max(0, Math.round((expiresAt - Date.now()) / 1000)),
-      )
-    }
-    tick()
-    const timer = window.setInterval(tick, 1000)
-    return () => window.clearInterval(timer)
-  }, [])
+/** Lock state lives in the header so it is never ambiguous whether we hold a passphrase. */
+function LockBadge() {
+  const { isUnlocked, lock } = usePassphrase()
 
-  return secondsLeft
-}
-
-function Row({ label, children }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-border py-3.5 last:border-b-0">
-      <span className="label-mono text-ink-600">{label}</span>
-      <span className="font-mono text-[0.8125rem] text-ink-100">{children}</span>
-    </div>
-  )
-}
-
-/**
- * Placeholder for the signed-in vault. It exists to prove the session layer
- * end to end: the token countdown and the manual rotate button exercise the
- * same code path the background scheduler uses.
- */
-export default function AppPage() {
-  const { user, email, logout, busy } = useAuth()
-  const secondsLeft = useAccessTokenCountdown()
-  const [rotating, setRotating] = useState(false)
-  const [rotateError, setRotateError] = useState(null)
-
-  const rotate = async () => {
-    setRotating(true)
-    setRotateError(null)
-    try {
-      await refreshSession()
-    } catch (error) {
-      setRotateError(error?.message ?? 'Refresh failed.')
-    } finally {
-      setRotating(false)
-    }
+  if (!isUnlocked) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 label-mono text-ink-500">
+            <Lock aria-hidden="true" className="size-3.5" />
+            locked
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64 text-xs">
+          No passphrase held. You will be asked for one the first time you reveal
+          a key.
+        </TooltipContent>
+      </Tooltip>
+    )
   }
 
   return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={lock}
+          className="inline-flex items-center gap-2 rounded-md border border-signal/30 bg-signal-deep/50 px-2.5 py-1.5 label-mono text-signal transition-colors hover:border-signal/50"
+        >
+          <LockOpen aria-hidden="true" className="size-3.5" />
+          unlocked
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 text-xs">
+        Passphrase held in memory for this session. Click to lock now — it also
+        locks itself after 5 minutes of inactivity.
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function VaultScreen() {
+  const { user, email, logout, busy } = useAuth()
+  const { isUnlocked, unlock } = usePassphrase()
+  const {
+    keys,
+    status,
+    error,
+    hasMore,
+    loadingMore,
+    reload,
+    loadMore,
+    create,
+    update,
+    remove,
+    restore,
+  } = useApiKeys()
+
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [selectedId, setSelectedId] = useState(null)
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [unlockOpen, setUnlockOpen] = useState(false)
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return keys.filter((item) => {
+      const state = keyStatus(item)
+      // Deleted keys stay out of every other view — they are an archive.
+      if (filter === 'all' ? item.is_deleted : state !== filter) return false
+      if (!needle) return true
+      return (
+        item.name?.toLowerCase().includes(needle) ||
+        item.description?.toLowerCase().includes(needle)
+      )
+    })
+  }, [keys, query, filter])
+
+  const selected = keys.find((item) => item.id === selectedId) ?? null
+  const counts = useMemo(() => {
+    const live = keys.filter((item) => !item.is_deleted)
+    return {
+      total: live.length,
+      attention: live.filter((item) =>
+        [KEY_STATUS.EXPIRING, KEY_STATUS.EXPIRED].includes(keyStatus(item)),
+      ).length,
+    }
+  }, [keys])
+
+  return (
     <div className="min-h-dvh">
-      <header className="border-b border-border">
+      <header className="sticky top-0 z-40 border-b border-border bg-ink-950/85 backdrop-blur-xl">
         <Frame>
-          <div className="flex h-16 items-center justify-between gap-4 px-(--gutter)">
+          <div className="flex h-16 items-center justify-between gap-3 px-(--gutter)">
             <Logo />
-            <div className="flex items-center gap-3">
-              <span className="hidden font-mono text-xs text-ink-400 sm:inline">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <LockBadge />
+              <span className="hidden font-mono text-xs text-ink-400 md:inline">
                 {user?.email ?? email}
               </span>
               <Button
@@ -79,76 +134,162 @@ export default function AppPage() {
                 className="border-border bg-transparent text-ink-200 hover:border-border-strong hover:bg-ink-900 hover:text-ink-50"
               >
                 <LogOut />
-                Sign out
+                <span className="hidden sm:inline">Sign out</span>
               </Button>
             </div>
           </div>
         </Frame>
       </header>
 
-      <main className="border-b border-border">
+      <main>
         <Frame>
-          <div className="px-(--gutter) py-(--section-y)">
-            <p className="label-mono flex items-center gap-2 text-signal">
-              <ShieldCheck aria-hidden="true" className="size-3.5" />
-              session active
-            </p>
-            <h1 className="mt-4 text-h2 text-ink-50">
-              You’re in{user?.given_name ? `, ${user.given_name}` : ''}.
-            </h1>
-            <p className="mt-4 max-w-[56ch] text-lead text-ink-300">
-              Google sign-in and your second factor both checked out. The vault UI
-              lands here next — this screen is the session harness.
-            </p>
-
-            <div className="mt-10 max-w-lg rounded-xl border border-border bg-ink-900/50 p-5 sm:p-6">
-              <p className="label-mono mb-2 text-ink-500">Session</p>
-              <Row label="Account">{user?.email ?? email ?? '—'}</Row>
-              <Row label="Second factor">
-                <span className={user?.mfa_enabled ? 'text-signal' : 'text-ember'}>
-                  {user?.mfa_enabled ? 'enrolled' : 'not enrolled'}
-                </span>
-              </Row>
-              <Row label="Access token expires in">
-                <span
-                  className={cn(
-                    'tabular',
-                    secondsLeft !== null && secondsLeft < 60 ? 'text-ember' : 'text-ink-100',
-                  )}
-                >
-                  {secondsLeft === null ? 'unknown' : `${secondsLeft}s`}
-                </span>
-              </Row>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={rotate}
-                  disabled={rotating}
-                  className="border-border bg-transparent text-ink-200 hover:border-border-strong hover:bg-ink-850 hover:text-ink-50"
-                >
-                  {rotating ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <RefreshCw />
-                  )}
-                  Rotate now
-                </Button>
-                <span className="label-mono text-ink-600">
-                  auto-rotates 60s before expiry
-                </span>
+          <div className="px-(--gutter) py-10 sm:py-14">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h1 className="text-h2 text-ink-50">Vault</h1>
+                <p className="mt-2 text-[0.9375rem] text-ink-400">
+                  {counts.total === 0
+                    ? 'No keys yet.'
+                    : `${counts.total} ${counts.total === 1 ? 'key' : 'keys'}`}
+                  {counts.attention > 0 ? (
+                    <span className="text-ember">
+                      {' · '}
+                      {counts.attention} needing attention
+                    </span>
+                  ) : null}
+                </p>
               </div>
 
-              {rotateError ? (
-                <p role="alert" className="mt-4 text-[0.8125rem] text-flare">
-                  {rotateError}
-                </p>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {!isUnlocked ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setUnlockOpen(true)}
+                    className="border-border bg-transparent text-ink-200 hover:border-border-strong hover:bg-ink-900 hover:text-ink-50"
+                  >
+                    <LockOpen />
+                    Unlock
+                  </Button>
+                ) : null}
+                <Button onClick={() => setCreating(true)}>
+                  <Plus />
+                  Add a key
+                </Button>
+              </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="mt-8 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative max-w-sm flex-1">
+                <Search
+                  aria-hidden="true"
+                  className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-ink-600"
+                />
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search keys"
+                  aria-label="Search keys by name or description"
+                  className="h-10 border-border bg-ink-925/70 pl-9 text-sm text-ink-100 placeholder:text-ink-600 focus-visible:border-signal-dim focus-visible:ring-0"
+                />
+              </div>
+
+              <div
+                role="group"
+                aria-label="Filter by status"
+                className="flex flex-wrap gap-1"
+              >
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={filter === item.id}
+                    onClick={() => setFilter(item.id)}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 label-mono transition-colors',
+                      filter === item.id
+                        ? 'bg-ink-800 text-ink-50'
+                        : 'text-ink-500 hover:bg-ink-900 hover:text-ink-200',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-xl border border-border bg-ink-900/40">
+              <KeyTable
+                keys={visible}
+                status={status}
+                error={error}
+                filtered={Boolean(query) || filter !== 'all'}
+                onSelect={(item) => setSelectedId(item.id)}
+                onAdd={() => setCreating(true)}
+                onRetry={reload}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={loadMore}
+              />
             </div>
           </div>
         </Frame>
       </main>
+
+      <KeyDetail
+        apiKey={selected}
+        open={Boolean(selected)}
+        onOpenChange={(next) => {
+          if (!next) setSelectedId(null)
+        }}
+        onEdit={(item) => setEditing(item)}
+        onDelete={async (item) => {
+          await remove(item.id)
+          setSelectedId(null)
+        }}
+        onRestore={async (item) => {
+          await restore(item.id)
+        }}
+      />
+
+      <CreateKeyDialog
+        open={creating}
+        onOpenChange={setCreating}
+        onCreate={async (payload, usedPassphrase) => {
+          await create(payload)
+          // Creating proves you know the passphrase, so open the vault with it.
+          if (!isUnlocked && usedPassphrase) unlock(usedPassphrase)
+        }}
+      />
+
+      <EditKeyDialog
+        open={Boolean(editing)}
+        apiKey={editing}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null)
+        }}
+        onSave={async (patch) => {
+          await update(editing.id, patch)
+        }}
+      />
+
+      <PassphraseDialog
+        open={unlockOpen}
+        onOpenChange={setUnlockOpen}
+        onSubmit={(value) => {
+          unlock(value)
+          setUnlockOpen(false)
+        }}
+      />
     </div>
+  )
+}
+
+export default function AppPage() {
+  return (
+    <PassphraseProvider>
+      <VaultScreen />
+    </PassphraseProvider>
   )
 }
