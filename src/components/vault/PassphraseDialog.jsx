@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 /** Shared input styling so every passphrase field looks identical. */
-export const secretInputClass =
+const secretInputClass =
   'h-11 border-border bg-ink-925/70 font-mono text-sm text-ink-50 placeholder:text-ink-600 focus-visible:border-signal-dim focus-visible:ring-0'
 
 export function PassphraseField({
@@ -23,7 +23,7 @@ export function PassphraseField({
   value,
   onChange,
   autoFocus = false,
-  placeholder = 'Your vault passphrase',
+  placeholder = 'Passphrase',
   invalid = false,
   describedBy,
 }) {
@@ -57,9 +57,8 @@ export function PassphraseField({
 }
 
 /**
- * Asked for once per session (or per key, when a key was sealed with a
- * different passphrase). The value goes into memory only — see
- * hooks/PassphraseProvider.jsx.
+ * Asks for one key's passphrase. Every key has its own, so nothing is kept
+ * between reveals — the value lives in this form's state and dies with it.
  *
  * The form is a child so it mounts fresh with the dialog; no reset effect.
  */
@@ -74,12 +73,12 @@ function PassphraseForm({ onSubmit, onCancel, submitLabel, busy, error }) {
         if (value.length >= 8 && !busy) onSubmit(value)
       }}
     >
-      <Label htmlFor="vault-passphrase" className="label-mono text-ink-500">
+      <Label htmlFor="key-reveal-passphrase" className="label-mono text-ink-500">
         Passphrase
       </Label>
       <div className="mt-2">
         <PassphraseField
-          id="vault-passphrase"
+          id="key-reveal-passphrase"
           value={value}
           onChange={setValue}
           autoFocus
@@ -124,9 +123,9 @@ export function PassphraseDialog({
   open,
   onOpenChange,
   onSubmit,
-  title = 'Unlock your vault',
-  description = 'Your passphrase decrypts the keys in this vault. It is held in memory for this session only and never stored.',
-  submitLabel = 'Unlock',
+  title = "Enter this key's passphrase",
+  description = 'Each key is sealed with its own passphrase. It is used for this one action and never stored.',
+  submitLabel = 'Reveal',
   busy = false,
   error = null,
 }) {

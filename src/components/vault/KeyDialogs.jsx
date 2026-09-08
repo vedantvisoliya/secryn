@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { usePassphrase } from '@/hooks/passphrase-context'
 import {
   DEFAULT_REMINDER_DAYS,
   MAX_REMINDER_DAYS,
@@ -109,7 +108,6 @@ function nameProblem(value) {
  * state starts fresh every time without a reset effect.
  */
 function CreateKeyForm({ onClose, onCreate }) {
-  const { passphrase, isUnlocked, touch } = usePassphrase()
   const [form, setForm] = useState({
     name: '',
     api_key: '',
@@ -117,13 +115,11 @@ function CreateKeyForm({ onClose, onCreate }) {
     expiration_date: isoDaysFromNow(90),
     reminder: String(DEFAULT_REMINDER_DAYS),
   })
-  const [ownPassphrase, setOwnPassphrase] = useState('')
-  const [useOwn, setUseOwn] = useState(!isUnlocked)
+  const [passphrase, setPassphrase] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
   const set = (patch) => setForm((current) => ({ ...current, ...patch }))
-  const effectivePassphrase = useOwn ? ownPassphrase : (passphrase ?? '')
 
   const problems = {
     name: nameProblem(form.name),
@@ -138,7 +134,7 @@ function CreateKeyForm({ onClose, onCreate }) {
         : null,
     expiration_date: !form.expiration_date ? 'Required.' : null,
     reminder: reminderProblem(form.reminder),
-    passphrase: effectivePassphrase.length < 8 ? 'At least 8 characters.' : null,
+    passphrase: passphrase.length < 8 ? 'At least 8 characters.' : null,
   }
   const valid = Object.values(problems).every((problem) => problem === null)
 
@@ -148,17 +144,13 @@ function CreateKeyForm({ onClose, onCreate }) {
     setBusy(true)
     setError(null)
     try {
-      await onCreate(
-        {
-          name: form.name.trim(),
-          api_key: form.api_key.trim(),
-          description: form.description.trim() || null,
-          ...encodeSchedule(form.expiration_date, form.reminder),
-          passphrase: effectivePassphrase,
-        },
-        effectivePassphrase,
-      )
-      touch()
+      await onCreate({
+        name: form.name.trim(),
+        api_key: form.api_key.trim(),
+        description: form.description.trim() || null,
+        ...encodeSchedule(form.expiration_date, form.reminder),
+        passphrase,
+      })
       onClose()
     } catch (caught) {
       setError(caught?.message ?? 'Could not save the key.')
@@ -172,8 +164,8 @@ function CreateKeyForm({ onClose, onCreate }) {
       <DialogHeader>
         <DialogTitle className="text-ink-50">Add a key</DialogTitle>
         <DialogDescription className="text-ink-400">
-          The value is sealed with AES-256-GCM before it is stored. We keep the
-          ciphertext; the passphrase stays with you.
+          The value is sealed with AES-256-GCM before it is stored. Each key gets
+          its own passphrase — you will need this exact one to read it back.
         </DialogDescription>
       </DialogHeader>
 
@@ -233,32 +225,23 @@ function CreateKeyForm({ onClose, onCreate }) {
         />
 
         <div className="rounded-lg border border-border bg-ink-925/60 p-4">
-          {isUnlocked && !useOwn ? (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[0.8125rem] text-ink-300">
-                Sealed with your vault passphrase.
-              </p>
-              <button
-                type="button"
-                onClick={() => setUseOwn(true)}
-                className="text-xs text-ink-500 underline underline-offset-2 transition-colors hover:text-ink-200"
-              >
-                Use a different one
-              </button>
-            </div>
-          ) : (
-            <Field label="Passphrase" htmlFor="key-passphrase" error={problems.passphrase}>
-              <PassphraseField
-                id="key-passphrase"
-                value={ownPassphrase}
-                onChange={setOwnPassphrase}
-                invalid={Boolean(problems.passphrase)}
-              />
-              <p className="mt-2 text-xs text-ink-600">
-                There is no recovery. Lose this and the key is unreadable.
-              </p>
-            </Field>
-          )}
+          <Field
+            label="Passphrase for this key"
+            htmlFor="key-passphrase"
+            error={problems.passphrase}
+          >
+            <PassphraseField
+              id="key-passphrase"
+              value={passphrase}
+              onChange={setPassphrase}
+              placeholder="At least 8 characters"
+              invalid={Boolean(problems.passphrase)}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-ink-600">
+              This passphrase belongs to this key alone, and there is no
+              recovery. Lose it and the value is unreadable — not by us either.
+            </p>
+          </Field>
         </div>
 
         <ErrorNote>{error}</ErrorNote>

@@ -1,21 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Lock, LockOpen, LogOut, Plus, Search } from 'lucide-react'
+import { LogOut, Plus, Search } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/auth-context'
 import { useApiKeys } from '@/hooks/useApiKeys'
-import { PassphraseProvider } from '@/hooks/PassphraseProvider'
-import { usePassphrase } from '@/hooks/passphrase-context'
 import { KEY_STATUS, keyStatus } from '@/lib/key-status'
 import { Frame } from '@/components/shared/Frame'
 import { Logo } from '@/components/shared/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { KeyTable } from '@/components/vault/KeyTable'
 import { KeyDetail } from '@/components/vault/KeyDetail'
 import { CreateKeyDialog, EditKeyDialog } from '@/components/vault/KeyDialogs'
-import { PassphraseDialog } from '@/components/vault/PassphraseDialog'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -25,50 +21,15 @@ const FILTERS = [
   { id: KEY_STATUS.DELETED, label: 'Deleted' },
 ]
 
-/** Lock state lives in the header so it is never ambiguous whether we hold a passphrase. */
-function LockBadge() {
-  const { isUnlocked, lock } = usePassphrase()
-
-  if (!isUnlocked) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 label-mono text-ink-500">
-            <Lock aria-hidden="true" className="size-3.5" />
-            locked
-          </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-64 text-xs">
-          No passphrase held. You will be asked for one the first time you reveal
-          a key.
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={lock}
-          className="inline-flex items-center gap-2 rounded-md border border-signal/30 bg-signal-deep/50 px-2.5 py-1.5 label-mono text-signal transition-colors hover:border-signal/50"
-        >
-          <LockOpen aria-hidden="true" className="size-3.5" />
-          unlocked
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-64 text-xs">
-        Passphrase held in memory for this session. Click to lock now — it also
-        locks itself after 5 minutes of inactivity.
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
-function VaultScreen() {
+/**
+ * The vault.
+ *
+ * Each key carries its own passphrase, set when it was created, so there is no
+ * vault-wide unlocked state — revealing a value always asks for that key's
+ * passphrase and nothing is held between reveals.
+ */
+export default function AppPage() {
   const { user, email, logout, busy } = useAuth()
-  const { isUnlocked, unlock } = usePassphrase()
   const {
     keys,
     status,
@@ -88,7 +49,6 @@ function VaultScreen() {
   const [selectedId, setSelectedId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [unlockOpen, setUnlockOpen] = useState(false)
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -122,7 +82,6 @@ function VaultScreen() {
           <div className="flex h-16 items-center justify-between gap-3 px-(--gutter)">
             <Logo />
             <div className="flex items-center gap-2 sm:gap-3">
-              <LockBadge />
               <span className="hidden font-mono text-xs text-ink-400 md:inline">
                 {user?.email ?? email}
               </span>
@@ -160,22 +119,10 @@ function VaultScreen() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                {!isUnlocked ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => setUnlockOpen(true)}
-                    className="border-border bg-transparent text-ink-200 hover:border-border-strong hover:bg-ink-900 hover:text-ink-50"
-                  >
-                    <LockOpen />
-                    Unlock
-                  </Button>
-                ) : null}
-                <Button onClick={() => setCreating(true)}>
-                  <Plus />
-                  Add a key
-                </Button>
-              </div>
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                Add a key
+              </Button>
             </div>
 
             {/* Toolbar */}
@@ -253,15 +200,7 @@ function VaultScreen() {
         }}
       />
 
-      <CreateKeyDialog
-        open={creating}
-        onOpenChange={setCreating}
-        onCreate={async (payload, usedPassphrase) => {
-          await create(payload)
-          // Creating proves you know the passphrase, so open the vault with it.
-          if (!isUnlocked && usedPassphrase) unlock(usedPassphrase)
-        }}
-      />
+      <CreateKeyDialog open={creating} onOpenChange={setCreating} onCreate={create} />
 
       <EditKeyDialog
         open={Boolean(editing)}
@@ -273,23 +212,6 @@ function VaultScreen() {
           await update(editing.id, patch)
         }}
       />
-
-      <PassphraseDialog
-        open={unlockOpen}
-        onOpenChange={setUnlockOpen}
-        onSubmit={(value) => {
-          unlock(value)
-          setUnlockOpen(false)
-        }}
-      />
     </div>
-  )
-}
-
-export default function AppPage() {
-  return (
-    <PassphraseProvider>
-      <VaultScreen />
-    </PassphraseProvider>
   )
 }

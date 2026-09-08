@@ -12,7 +12,6 @@ import {
 
 import { cn } from '@/lib/utils'
 import { ApiError, keysApi } from '@/lib/api'
-import { usePassphrase } from '@/hooks/passphrase-context'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { describeReminder } from '@/lib/period-cycle'
 import { describeExpiry, formatDate, keyStatus } from '@/lib/key-status'
@@ -46,20 +45,13 @@ function Row({ label, children, mono = true }) {
   )
 }
 
-function truncate(value, head = 10) {
-  if (!value) return '—'
-  return value.length <= head * 2 ? value : `${value.slice(0, head)}…${value.slice(-4)}`
-}
-
 export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRestore }) {
-  const { passphrase, isUnlocked, unlock, touch, lockedAt } = usePassphrase()
   const { copied, copy } = useCopyToClipboard()
 
   /**
-   * The revealed value is stamped with the key it belongs to and the lock
-   * generation it was decrypted under. Anything else — a different key
-   * selected, the vault locked — makes it stale by derivation, so it can never
-   * leak across contexts and needs no cleanup effect.
+   * Every key has its own passphrase, so nothing is held between reveals — the
+   * plaintext is stamped with the key it belongs to and dropped on close, on
+   * hide, and on the auto-hide timer.
    */
   const [revealed, setRevealed] = useState(null)
   const [revealing, setRevealing] = useState(false)
@@ -68,10 +60,11 @@ export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRest
   const [promptError, setPromptError] = useState(null)
   const [acting, setActing] = useState(false)
 
+  // Both guards matter: with optional chaining alone, `undefined === undefined`
+  // is true on the first render (no key selected, nothing revealed) and we
+  // would dereference null.
   const plaintext =
-    revealed && revealed.keyId === apiKey?.id && revealed.lockToken === lockedAt
-      ? revealed.value
-      : null
+    revealed && apiKey && revealed.keyId === apiKey.id ? revealed.value : null
 
   // Only timer-driven; nothing here runs synchronously on render.
   useEffect(() => {
@@ -81,39 +74,33 @@ export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRest
   }, [plaintext])
 
   const reveal = useCallback(
-    async (candidate) => {
-      const secret = candidate ?? passphrase
-      if (!secret) {
-        setPromptError(null)
-        setPromptOpen(true)
-        return
-      }
+    async (secret) => {
       setRevealing(true)
       setError(null)
       try {
         const value = await keysApi.decrypt(apiKey.id, secret)
         if (!value) {
           setError('The server returned no value for this key.')
+          setPromptOpen(false)
           return
         }
-        setRevealed({ keyId: apiKey.id, lockToken: lockedAt, value })
+        setRevealed({ keyId: apiKey.id, value })
         setPromptOpen(false)
-        if (isUnlocked) touch()
-        else unlock(secret)
+        setPromptError(null)
       } catch (caught) {
         const wrongPassphrase =
           caught instanceof ApiError && [400, 401, 403, 422].includes(caught.status)
         if (wrongPassphrase) {
-          setPromptError('That passphrase does not open this key.')
-          setPromptOpen(true)
+          setPromptError('That is not the passphrase for this key.')
         } else {
           setError(caught?.message ?? 'Could not decrypt this key.')
+          setPromptOpen(false)
         }
       } finally {
         setRevealing(false)
       }
     },
-    [apiKey, passphrase, lockedAt, isUnlocked, unlock, touch],
+    [apiKey],
   )
 
   const runAction = async (action) => {
@@ -183,7 +170,14 @@ export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRest
                   variant="outline"
                   size="sm"
                   disabled={revealing || deleted}
-                  onClick={() => (plaintext ? setRevealed(null) : reveal())}
+                  onClick={() => {
+                    if (plaintext) {
+                      setRevealed(null)
+                      return
+                    }
+                    setPromptError(null)
+                    setPromptOpen(true)
+                  }}
                   className="border-border bg-transparent text-ink-200 hover:border-border-strong hover:bg-ink-850 hover:text-ink-50"
                 >
                   {revealing ? (
@@ -235,16 +229,6 @@ export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRest
               <Row label="Reminder">{describeReminder(apiKey)}</Row>
               <Row label="Created">{formatDate(apiKey.created_at)}</Row>
               <Row label="Updated">{formatDate(apiKey.updated_at)}</Row>
-            </div>
-
-            {/* Crypto — the receipt that this really is sealed */}
-            <div className="mt-7">
-              <p className="label-mono mb-1 text-ink-600">Encryption</p>
-              <Row label="Algorithm">aes-256-gcm</Row>
-              <Row label="Nonce">{truncate(apiKey.nonce)}</Row>
-              <Row label="Auth tag">{truncate(apiKey.auth_tag)}</Row>
-              <Row label="KDF salt">{truncate(apiKey.kdf_salt)}</Row>
-              <Row label="Record">{truncate(apiKey.id, 8)}</Row>
             </div>
 
             {/* Actions */}
@@ -305,15 +289,11 @@ export function KeyDetail({ apiKey, open, onOpenChange, onEdit, onDelete, onRest
           setPromptOpen(next)
           if (!next) setPromptError(null)
         }}
-        onSubmit={(value) => reveal(value)}
+        onSubmit={reveal}
         busy={revealing}
         error={promptError}
-        title={promptError ? 'Different passphrase' : 'Unlock to reveal'}
-        description={
-          promptError
-            ? 'This key was sealed with a different passphrase from the one held for this session.'
-            : 'Your passphrase decrypts this value. It is held in memory for this session only and never stored.'
-        }
+        title="Enter this key's passphrase"
+        description={`${apiKey.name} was sealed with its own passphrase, set when you added it. It is used to decrypt this value and is never stored.`}
         submitLabel="Reveal"
       />
     </>
