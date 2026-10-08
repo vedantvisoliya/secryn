@@ -27,8 +27,16 @@ function groupSecret(secret) {
 }
 
 export function EnrollStep() {
-  const { enrollment, confirmEnrollment, restartEnrollment, busy, error, setError } =
-    useAuth()
+  const {
+    email,
+    enrollment,
+    confirmEnrollment,
+    restartEnrollment,
+    logout,
+    busy,
+    error,
+    setError,
+  } = useAuth()
   const [code, setCode] = useState('')
   // Keyed by the URI it was drawn for, so a new secret shows the loading
   // state without a synchronous reset inside the effect.
@@ -154,15 +162,32 @@ export function EnrollStep() {
         </Button>
       </form>
 
-      <button
-        type="button"
-        onClick={restartEnrollment}
-        disabled={busy}
-        className="mt-4 inline-flex items-center gap-2 text-xs text-ink-500 transition-colors hover:text-ink-200 disabled:opacity-50"
-      >
-        <RotateCw aria-hidden="true" className="size-3" />
-        Generate a new key
-      </button>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={restartEnrollment}
+          disabled={busy}
+          className="inline-flex items-center gap-2 text-xs text-ink-500 transition-colors hover:text-ink-200 disabled:opacity-50"
+        >
+          <RotateCw aria-hidden="true" className="size-3" />
+          Generate a new key
+        </button>
+
+        <button
+          type="button"
+          onClick={logout}
+          disabled={busy}
+          className="inline-flex items-center gap-2 text-xs text-ink-500 transition-colors hover:text-ink-200 disabled:opacity-50"
+        >
+          Use a different account
+        </button>
+      </div>
+
+      {email ? (
+        <p className="mt-3 text-center text-xs text-ink-600">
+          Signed in as <span className="text-ink-400">{email}</span>
+        </p>
+      ) : null}
     </AuthShell>
   )
 }
